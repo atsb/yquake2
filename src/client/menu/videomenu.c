@@ -110,6 +110,15 @@ Renderer_FillRenderdef(void)
 		rendererlist[numrenderer].boxstr = "[OpenGL ES3]";
 		rendererlist[numrenderer].cvarstr = "gles3";
 	}
+	
+	#ifndef __APPLE__
+	if (VID_HasRenderer("gl4"))
+	{
+		numrenderer++;
+		rendererlist[numrenderer].boxstr = "[OpenGL 4.6]";
+		rendererlist[numrenderer].cvarstr = "gl4";
+	}
+	#endif
 
 	if (VID_HasRenderer("vk"))
 	{
