@@ -74,14 +74,7 @@ CompileShader(GLenum shaderType, const char* shaderSrc, const char* shaderSrc2)
 		{
 			case GL_VERTEX_SHADER:   shaderTypeStr = "Vertex"; break;
 			case GL_FRAGMENT_SHADER: shaderTypeStr = "Fragment"; break;
-			// maybe we will use it in the future?
 			case GL_COMPUTE_SHADER:  shaderTypeStr = "Compute"; break;
-			// we don't use geometry shaders
-			// case GL_GEOMETRY_SHADER: shaderTypeStr = "Geometry"; break;
-			/* we're unlikely to need/use them anyway
-			case GL_TESS_CONTROL_SHADER:    shaderTypeStr = "TessControl"; break;
-			case GL_TESS_EVALUATION_SHADER: shaderTypeStr = "TessEvaluation"; break;
-			*/
 		}
 		eprintf("ERROR: Compiling %s Shader failed: %s\n", shaderTypeStr, bufPtr);
 		glDeleteShader(shader);
@@ -1338,42 +1331,22 @@ updateUBO(GLuint ubo, GLsizeiptr size, void* data)
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo);
 	}
 
-	// http://docs.gl/gl4/glBufferSubData says  "When replacing the entire data store,
-	// consider using glBufferSubData rather than completely recreating the data store
-	// with glBufferData. This avoids the cost of reallocating the data store."
-	// no idea why glBufferData() doesn't just do that when size doesn't change, but whatever..
-	// however, it also says glBufferSubData() might cause a stall so I DON'T KNOW!
-	// on Linux/nvidia, by just looking at the fps, glBufferData() and glBufferSubData() make no difference
-	// TODO: STREAM instead DYNAMIC?
-
-#if 1
-	// this seems to be reasonably fast everywhere.. glMapBuffer() seems to be a bit faster on OSX though..
-	glBufferData(GL_UNIFORM_BUFFER, size, data, GL_DYNAMIC_DRAW);
-#elif 0
-	// on OSX this is super slow (200fps instead of 470-500), BUT it is as fast as glBufferData() when orphaning first
-	// nvidia/linux-blob doesn't care about this vs glBufferData()
-	// AMD open source linux (R3 370) is also slower here (not as bad as OSX though)
-	// intel linux doesn't seem to care either (maybe 3% faster, but that might be imagination)
-	// AMD Windows legacy driver (Radeon HD 6950) doesn't care, all 3 alternatives seem to be equally fast
-	//glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_DYNAMIC_DRAW); // orphan
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, size, data);
-#else
-	// with my current nvidia-driver (GTX 770, 375.39), the following *really* makes it slower. (<140fps instead of ~850)
-	// on OSX (Intel Haswell Iris Pro, OSX 10.11) this is fastest (~500fps instead of ~470)
-	// on Linux/intel (Ivy Bridge HD-4000, Linux 4.4) this might be a tiny bit faster than the alternatives..
-	glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_DYNAMIC_DRAW); // orphan
-	GLvoid* ptr = glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
+	/*
+		atsb: faster in 4.6 and we can use glMapBufferRange to update the entire buffer at once from the beginning.
+		we don't need to use glBindBufferRange and we can leave that alone for now.
+	*/
+	glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_STREAM_DRAW); // atsb: GL_STREAM_DRAW
+	
+	/*
+		atsb: we use GL_MAP_WRITE_BIT here to ensure synchronisation between CPU/GPU
+		and to prevent any possible data races in cases of sync loss.
+		
+		we don't use the persistent mapping feature yet as that would require
+		a bit more work with how the buffers are created and mapped.
+	*/
+	GLvoid* ptr = glMapBufferRange(GL_UNIFORM_BUFFER, 0, size, GL_MAP_WRITE_BIT);
 	memcpy(ptr, data, size);
 	glUnmapBuffer(GL_UNIFORM_BUFFER);
-#endif
-
-	// TODO: another alternative: glMapBufferRange() and each time update a different part
-	//       of buffer asynchronously (GL_MAP_UNSYNCHRONIZED_BIT) => ringbuffer style
-	//       when starting again from the beginning, synchronization must happen I guess..
-	//       also, orphaning might be necessary
-	//       and somehow make sure the new range is used by the UBO => glBindBufferRange()
-	//  see http://git.quintin.ninja/mjones/Dolphin/blob/4a463f4588e2968c499236458c5712a489622633/Source/Plugins/Plugin_VideoOGL/Src/ProgramShaderCache.cpp#L207
-	//   or https://github.com/dolphin-emu/dolphin/blob/master/Source/Core/VideoBackends/OGL/ProgramShaderCache.cpp
 }
 
 void GL4_UpdateUBOCommon(void)
