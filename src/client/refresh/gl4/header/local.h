@@ -141,7 +141,7 @@ typedef struct
 	GLfloat intensity;
 	GLfloat intensity2D; // for HUD, menus etc
 
-		// entries of std140 UBOs are aligned to multiples of their own size
+		// entries of std430 UBOs are aligned to multiples of their own size
 		// so we'll need to pad accordingly for following vec4
 		GLfloat _padding;
 

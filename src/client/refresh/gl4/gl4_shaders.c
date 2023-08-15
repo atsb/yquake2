@@ -39,7 +39,7 @@ CompileShader(GLenum shaderType, const char* shaderSrc, const char* shaderSrc2)
 #ifdef YQ2_GL3_GLES3
 	const char* version = "#version 300 es\nprecision mediump float;\n";
 #else // Desktop GL
-	const char* version = "#version 150\n";
+	const char* version = "#version 460\n";
 #endif
 	const char* sources[3] = { version, shaderSrc, shaderSrc2 };
 	int numSources = shaderSrc2 != NULL ? 3 : 2;
@@ -72,9 +72,9 @@ CompileShader(GLenum shaderType, const char* shaderSrc, const char* shaderSrc2)
 		const char* shaderTypeStr = "";
 		switch(shaderType)
 		{
-			case GL_VERTEX_SHADER:   shaderTypeStr = "Vertex"; break;
-			case GL_FRAGMENT_SHADER: shaderTypeStr = "Fragment"; break;
-			case GL_COMPUTE_SHADER:  shaderTypeStr = "Compute"; break;
+			case GL_VERTEX_SHADER:   shaderTypeStr = "vertex"; break;
+			case GL_FRAGMENT_SHADER: shaderTypeStr = "fragment"; break;
+			case GL_COMPUTE_SHADER:  shaderTypeStr = "compute"; break;
 		}
 		eprintf("ERROR: Compiling %s Shader failed: %s\n", shaderTypeStr, bufPtr);
 		glDeleteShader(shader);
@@ -242,7 +242,6 @@ static const char* fragmentSrc2Dpostprocess = MULTILINE_STRING(
 			// (this is just for postprocessing)
 			vec4 res = texture(tex, passTexCoord);
 			// apply the v_blend, usually blended as a colored quad with:
-			// glBlendEquation(GL_FUNC_ADD); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			res.rgb = v_blend.a * v_blend.rgb + (1.0 - v_blend.a)*res.rgb;
 			outColor =  res;
 		}
@@ -252,7 +251,7 @@ static const char* fragmentSrc2DpostprocessWater = MULTILINE_STRING(
 		in vec2 passTexCoord;
 
 		// for UBO shared between all shaders (incl. 2D)
-		// TODO: not needed here, remove?
+		// atsb: apparently needed despite not being used.
 		layout (std140) uniform uniCommon
 		{
 			float gamma;
@@ -267,6 +266,7 @@ static const char* fragmentSrc2DpostprocessWater = MULTILINE_STRING(
 		uniform sampler2D tex;
 
 		uniform float time;
+		
 		uniform vec4 v_blend;
 
 		out vec4 outColor;
@@ -275,12 +275,9 @@ static const char* fragmentSrc2DpostprocessWater = MULTILINE_STRING(
 		{
 			vec2 uv = passTexCoord;
 
-			// warping based on vkquake2
-			// here uv is always between 0 and 1 so ignore all that scrWidth and gl_FragCoord stuff
-			//float sx = pc.scale - abs(pc.scrWidth  / 2.0 - gl_FragCoord.x) * 2.0 / pc.scrWidth;
-			//float sy = pc.scale - abs(pc.scrHeight / 2.0 - gl_FragCoord.y) * 2.0 / pc.scrHeight;
-			float sx = 1.0 - abs(0.5-uv.x)*2.0;
-			float sy = 1.0 - abs(0.5-uv.y)*2.0;
+			// warping based on ref_vk
+			float sx = 1.0 - abs(0.5 - uv.x) * 2.0;
+			float sy = 1.0 - abs(0.5 - uv.y) * 2.0;
 			float xShift = 2.0 * time + uv.y * PI * 10.0;
 			float yShift = 2.0 * time + uv.x * PI * 10.0;
 			vec2 distortion = vec2(sin(xShift) * sx, sin(yShift) * sy) * 0.00666;
@@ -288,12 +285,10 @@ static const char* fragmentSrc2DpostprocessWater = MULTILINE_STRING(
 			uv += distortion;
 			uv = clamp(uv, vec2(0.0, 0.0), vec2(1.0, 1.0));
 
-			// no gamma or intensity here, it has been applied before
-			// (this is just for postprocessing)
 			vec4 res = texture(tex, uv);
+			
 			// apply the v_blend, usually blended as a colored quad with:
-			// glBlendEquation(GL_FUNC_ADD); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			res.rgb = v_blend.a * v_blend.rgb + (1.0 - v_blend.a)*res.rgb;
+			res.rgb = v_blend.a * v_blend.rgb + (1.0 - v_blend.a) * res.rgb;
 			outColor =  res;
 		}
 );
